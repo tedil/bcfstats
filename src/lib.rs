@@ -1,23 +1,17 @@
 #![recursion_limit = "512"]
 
+use itertools::Itertools;
 use rust_bcf::{BcfRecord, BcfRecords, Record};
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use ybc;
-use ybc::Container;
-use ybc::Tile;
 use ybc::TileCtx::{Ancestor, Child, Parent};
-use ybc::TileSize;
 use ybc::TileSize::Four;
-use ybc::{Button, Buttons};
 use yew::prelude::*;
 use yew::services::reader::FileData;
-use yew::utils::document;
-use yew::web_sys;
 use yew::web_sys::{console, File, FileReader};
 use yew::Component;
-use itertools::Itertools;
 
 struct BcfStatsApp {
     link: ComponentLink<Self>,
@@ -27,6 +21,7 @@ struct BcfStatsApp {
 
 enum Msg {
     ClearFile,
+    Update,
     SelectFile(Option<File>),
 }
 
@@ -105,33 +100,6 @@ impl Component for BcfStatsApp {
         match msg {
             Msg::SelectFile(file) => {
                 self.file = file;
-                // let file: File = file;
-                // // let task: yew::services::reader::ReaderTask = yew::services::ReaderService::read_file(file, Callback::noop()).unwrap();
-                // let file_reader: yew::web_sys::FileReader = match yew::web_sys::FileReader::new() {
-                //     Ok(f) => f,
-                //     Err(e) => {
-                //         // alert("There was an error creating a file reader");
-                //         yew::web_sys::FileReader::new().expect("")
-                //     }
-                // };
-                //
-                // let fr_c = file_reader.clone();
-                // // create onLoadEnd callback
-                // let closure: Box<dyn Fn(yew::web_sys::ProgressEvent)> = Box::new(move |_e: yew::web_sys::ProgressEvent| {
-                //     let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
-                //     let len = array.byte_length() as usize;
-                //     let data: Vec<u8> = array.to_vec();
-                //     let records = BcfRecords::new(data.as_slice()).unwrap().collect::<Vec<_>>();
-                //     // self.records = Some(records);
-                // });
-                // let onloadend_cb = Closure::wrap(closure);
-                //
-                // file_reader.set_onloadend(Some(onloadend_cb.as_ref().unchecked_ref()));
-                // file_reader
-                //     .read_as_array_buffer(&file)
-                //     .expect("blob not readable");
-                // onloadend_cb.forget();
-
                 let file_reader = FileReader::new().unwrap();
                 file_reader
                     .read_as_array_buffer(&self.file.as_ref().unwrap())
@@ -170,8 +138,10 @@ impl Component for BcfStatsApp {
             }
             Msg::ClearFile => {
                 self.file = None;
+                (*RECORDS.lock().unwrap()).clear();
                 true
             }
+            Msg::Update => true,
         }
     }
 
@@ -185,50 +155,63 @@ impl Component for BcfStatsApp {
     fn view(&self) -> Html {
         match &self.file {
             Some(file) => html! {
-             <>
-              <ybc::Container fluid=true>
-                <ybc::Tile ctx=Ancestor>
-                  <ybc::Tile ctx=Parent vertical=true size=Four>
-                    <ybc::Tile ctx=Child classes="box">
-                       <p>{ "Filename: "}<span>{ file.name() }</span></p>
-                       <p>{ "Last Modified: " }<span>{ file.last_modified() }</span></p>
-                       <p>{ "Size: " }<span>{ file.size() }</span></p>
-                    </ybc::Tile>
-                    <ybc::Tile ctx=Child classes="box">
-                        <table>
-                        <tr>
-                            <th>{"CHROM"}</th>
-                            <th>{"POS"}</th>
-                            <th>{"ID"}</th>
-                            <th>{"REF"}</th>
-                            <th>{"ALT"}</th>
-                            <th>{"QUAL"}</th>
-                        </tr>
-                        {
-                            for RECORDS.lock().unwrap().iter().map(|record| self.view_record(&record))
-                        }
-                        </table>
-                    </ybc::Tile>
-                    <ybc::Tile>
-                        <button onclick=self.link.callback(|_| Msg::ClearFile)>{ "Clear" }</button>
-                    </ybc::Tile>
-                  </ybc::Tile>
-                </ybc::Tile>
-              </ybc::Container>
-              </>
-
+                <>
+                    <ybc::Container fluid=true>
+                        <ybc::Tile ctx=Ancestor>
+                            <ybc::Tile ctx=Parent vertical=true>
+                                <ybc::Tile ctx=Child classes="box">
+                                    <p>{ "Filename: "}<span>{ file.name() }</span></p>
+                                    <p>{ "Last Modified: " }<span>{ file.last_modified() }</span></p>
+                                    <p>{ "Size: " }<span>{ file.size() }</span></p>
+                                </ybc::Tile>
+                                <ybc::Tile ctx=Child classes="box">
+                                    <input type="file" id="file-input" onchange=self.link.callback(|cd: ChangeData| {
+                                        match cd {
+                                            ChangeData::Files(file_list) => {
+                                                // log::info!("File list: {:?}", file_list.get(0));
+                                                Msg::SelectFile(file_list.get(0))
+                                            },
+                                            _ => Msg::ClearFile
+                                        }
+                                    })/>
+                                    <button onclick=self.link.callback(|_| Msg::ClearFile)>{ "Clear" }</button>
+                                    <button onclick=self.link.callback(|_| Msg::Update)>{ "Update" }</button>
+                                </ybc::Tile>
+                                <ybc::Tile ctx=Child classes="box">
+                                    <table>
+                                    <tr>
+                                        <th>{"CHROM"}</th>
+                                        <th>{"POS"}</th>
+                                        <th>{"ID"}</th>
+                                        <th>{"REF"}</th>
+                                        <th>{"ALT"}</th>
+                                        <th>{"QUAL"}</th>
+                                    </tr>
+                                    {
+                                        for RECORDS.lock().unwrap().iter().map(|record| self.view_record(&record))
+                                    }
+                                    </table>
+                                </ybc::Tile>
+                            </ybc::Tile>
+                        </ybc::Tile>
+                    </ybc::Container>
+                </>
             },
             None => html! {
                 <>
-                <input type="file" id="file-input" onchange=self.link.callback(|cd: ChangeData| {
-                    match cd {
-                        ChangeData::Files(file_list) => {
-                            // log::info!("File list: {:?}", file_list.get(0));
-                            Msg::SelectFile(file_list.get(0))
-                        },
-                        _ => Msg::ClearFile
-                    }
-                })/>
+                    <ybc::Tile ctx=Child classes="box">
+                        <input type="file" id="file-input" onchange=self.link.callback(|cd: ChangeData| {
+                            match cd {
+                                ChangeData::Files(file_list) => {
+                                    // log::info!("File list: {:?}", file_list.get(0));
+                                    Msg::SelectFile(file_list.get(0))
+                                },
+                                _ => Msg::ClearFile
+                            }
+                        })/>
+                        <button onclick=self.link.callback(|_| Msg::ClearFile)>{ "Clear" }</button>
+                        <button onclick=self.link.callback(|_| Msg::Update)>{ "Update" }</button>
+                    </ybc::Tile>
                 </>
             },
         }
