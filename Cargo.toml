@@ -1,0 +1,27 @@
+[package]
+name = "bcfstats"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+yew = "0.17.0"
+ybc = "0.1.6"
+wasm-bindgen = "0.2.74"
+js-sys = "0.3"
+lazy_static = "1.4"
+itertools = "0.10.0"
+
+[dependencies.niffler]
+version = "2.3"
+default-features = false
+features = ["gz"]
+
+[dependencies.rust-bcf]
+git = "https://github.com/tedil/rust-bcf"
+branch = "main"
+features = ["sync"]
